@@ -1,6 +1,5 @@
 
 
-
 import urllib
 from urllib.request import urlopen
 from urllib.parse import urlparse
@@ -8,7 +7,8 @@ import time
 from queue import *
 import threading
 from worker import Worker
-import pymysql.cursors
+from sqlworker import sqlWorker
+import pymysql
 
 
 
@@ -19,10 +19,10 @@ class spider():
 
     def __init__(self):
         # set vars 
-        self.visitedLinks = []
+        self.visitedLinks = set()
 
         self.allExtLinks = Queue()
-        self.maxThreads = 3
+        self.maxThreads = 10
         self.workers = []
         self.running  = True
 
@@ -37,8 +37,8 @@ class spider():
 
 
     def initDb(self):
-        conn = pymysql.connect(host='212.67.214.24', unix_socket='/tmp/mysql.sock', user='gary', passwd='Sarah2004!', db='0090-scraping')
-        self.cur = conn.cursor()
+        conn = pymysql.connect(host='', unix_socket='/tmp/mysql.sock', user='', passwd='', db='')
+        self.cur = conn.cursor(pymysql.cursors.DictCursor)
         self.cur.execute('USE `0090-scraping`')
 
 
@@ -59,15 +59,10 @@ class spider():
         return 'http://shopping.indiatimes.com/lifestyle/bed-linen/8-designer-rajasthani-cotton-double-bed-sheets-with-16-pillow-covers/11574/p_B4661019'
 
 
-    def visitedLinksFromDb(self):
-        cur.execute('select url from urls order by url')
-        existing = self.cur.fetchall()
-        for i in existing:
-            self.visitedLinks.append(i['url']) 
+    def createWorker(self, allExtLinks, theadNum, cur, visitedLinks):
+        return Worker(allExtLinks, theadNum, cur, visitedLinks)
 
-
-    def createWorker(self, allExtLinks, theadNum, cur):
-        return Worker(allExtLinks, theadNum, cur)
+    def getUniques():
 
 
     def run(self):
@@ -75,27 +70,49 @@ class spider():
         #we have 1 active link
         activeThreads = 1
 
+        #the sql worker
+        self.pending  = Queue()
+
         ## waiting for output
         print ("Spider: Waiting...")
+
+        # create the sql woorker thread
+        self.sW = sqlWorker( self.pending, self.cur )
+        self.sW.start()
+
 
         #while we are running
         while self.running :
 
+            #show the the loop is running
+            print(' ')
+            print(' -------- Ext Links ' + str(self.allExtLinks.qsize()) + ', Threads: ' + str(threading.activeCount()) + ' ----------'  )
+            print(' ')
+
             #if thread count < max - start new thread
             if threading.activeCount() < self.maxThreads:
 
-                #show the the loop is running
-                print(' ')
-                print(' -------- Ext Links ' + str(self.allExtLinks.qsize()) + ', Threads: ' + str(threading.activeCount()) + ' ----------'  )
-                print(' ')
-
-                w = self.createWorker( self.allExtLinks, activeThreads, self.cur )
+                w = self.createWorker( self.allExtLinks, activeThreads, self.cur, self.visitedLinks )
                 activeThreads = activeThreads + 1
                 self.workers.append(w)
                 w.start()
                     
             #end the dead workers
             for w in self.workers:
+
+                #if the worker is still running
+                if( w.isAlive() == True):
+
+                    #get the workers visited links
+                    for i in w.getVisitedLinks():
+                        self.visitedLinks.add(i)
+
+                    #add all of the visited linsk to the worker thread
+                    w.setVisitedLinks(self.visitedLinks)
+
+                    #append the waiting data
+                    for i in w.getUrlDetails():
+                        self.pending.put(i)
 
                 # join the dead threads and count
                 if( w.isAlive() == False):
@@ -111,9 +128,13 @@ class spider():
                 self.running = False
 
         #join active threads - to end the app
-        while threading.activeCount()>1:
+        while threading.activeCount()>1:            
             for w in self.workers:
                 w.join()
+
+
+        self.sW.join()
+
 
         ## waiting for output
         print ("Spider: Complete...")

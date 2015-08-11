@@ -1,5 +1,6 @@
 
 
+import sys, traceback
 from threading import Thread
 import urllib
 from urllib.request import urlopen
@@ -8,7 +9,9 @@ from bs4 import BeautifulSoup
 import logging
 import re
 from queue import *
+
 import pymysql
+
 import time
 
 
@@ -23,18 +26,18 @@ logging.basicConfig(level=logging.DEBUG)
 class Worker(Thread):
 
 
-    def __init__( self, queue, threadNum, cur ):
+    def __init__( self, queue, threadNum, cur, visitedLinks ):
+
         '''
         init with the queue and set the logger - this worker is a thread extended class
         '''
         Thread.__init__(self)
         self.threadNum = str(threadNum)
         self.cursor = cur      
-        self.visitedLinks = []
+        self.visitedLinks = visitedLinks
         self.queue = queue;
+        self.urlDetails = []
         self.running = True
-        self.maxException = 9;
-        self.exceptionCount = 0;
 
 
     def join(self, timeout=None):
@@ -45,97 +48,37 @@ class Worker(Thread):
         super(Worker, self).join(timeout)
 
 
+    def getVisitedLinks(self):
+        '''
+        return the workers current visited links
+        '''
+        return self.visitedLinks
+
+
+    def setVisitedLinks(self, visitedLinks):
+        '''
+        add to the workers visited links
+        '''
+        for i in visitedLinks:
+            self.visitedLinks.add(i)
+
+
     def getCurrentDomain(self, page):
         '''
         get the domain we are crawling
         '''
         parsed_uri = urlparse(page)
-        #domain = '{uri.scheme}://{uri.netloc}/'.format(uri=parsed_uri)
         return parsed_uri.netloc
-
-
-    def saveLink(self, url, title, description):
-        '''
-        see if the url exists
-        '''
-        sql = 'select * from urls where url = %s'
-        self.cursor.execute(sql, (url))
-        r = self.cursor.fetchone()
-
-        url_id = 0
-
-        if r == None:
-            self.cursor.execute('insert into urls (url) values (%s)', url)
-            self.cursor.execute('select LAST_INSERT_ID()')
-            url_id = self.cursor.fetchone()[0]
-        else:
-            url_id = r[0]
-
-
-        '''
-        see if the title exists
-        '''
-        sql = 'select * from phrazes where phraze = %s'
-        self.cursor.execute(sql, (title))
-        r = self.cursor.fetchone()
-
-        title_id = 0
-
-        if r == None:
-            self.cursor.execute('insert into phrazes (phraze) values (%s)', title)
-            self.cursor.execute('select LAST_INSERT_ID()')
-            title_id = self.cursor.fetchone()[0]
-        else:
-            title_id = r[0]
-
-
-        '''
-        add title to piviot
-        '''
-        sql = 'select * from url_phraze_pivot where urls_id = %s and phrazes_id = %s'
-        self.cursor.execute(sql, (url_id, title_id))
-        r = self.cursor.fetchone()
-        if r == None:
-            self.cursor.execute('insert into url_phraze_pivot (urls_id, phrazes_id, occurrences) values (%s, %s, 0)', (url_id, title_id))
-        else:
-            self.cursor.execute('update url_phraze_pivot set occurrences = occurrences +1 where urls_id = %s and phrazes_id = %s ', (url_id, title_id))
-
-
-        '''
-        see if the description exists
-        '''
-        sql = 'select * from phrazes where phraze = %s'
-        self.cursor.execute(sql, (description))
-        r = self.cursor.fetchone()
-
-        description_id = 0
-
-        if r == None:
-            self.cursor.execute('insert into phrazes (phraze) values (%s)', description)
-            self.cursor.execute('select LAST_INSERT_ID()')
-            description_id = self.cursor.fetchone()[0]
-        else:
-            description_id = r[0]
-
-
-        '''
-        add title to piviot
-        '''
-        sql = 'select * from url_phraze_pivot where urls_id = %s and phrazes_id = %s'
-        self.cursor.execute(sql, (url_id, description_id))
-        r = self.cursor.fetchone()
-        if r == None:
-            self.cursor.execute('insert into url_phraze_pivot (urls_id, phrazes_id, occurrences) values (%s, %s, 0)', (url_id, description_id))
-        else:
-            self.cursor.execute('update url_phraze_pivot set occurrences = occurrences +1 where urls_id = %s and phrazes_id = %s ', (url_id, description_id))
 
 
     def getMetaTitle(self, html):
         '''
         extract the page meta title
         '''
-        title = html.title.string
-        return title
+        if html.title is not None:
+            return html.title.string.encode('utf-8')
+
+        return ""
 
 
     def getMetaDescription(self, html):
@@ -143,7 +86,11 @@ class Worker(Thread):
         extract the page meta description
         '''
         description = html.findAll(attrs={"name":"description"})
-        return description[0]['content']
+
+        if len(description) and description[0]['content'] != None:
+            return description[0]['content'].encode('utf-8')
+
+        return ""
 
 
     def encodeLink(self, link):
@@ -161,7 +108,8 @@ class Worker(Thread):
         if so return data
         '''
         uri = self.encodeLink(uri)
-        self.visitedLinks.append(uri)
+
+        self.visitedLinks.add(uri)
 
         try:
             h = urlopen(uri)
@@ -172,7 +120,14 @@ class Worker(Thread):
                 return None
         except urllib.error.URLError:
             return None
+
                 
+    def getUrlDetails(self):
+        '''
+        get the list of url urlDetails
+        '''
+        return self.urlDetails
+
 
     def getLinks(self, page, url):
         '''
@@ -203,7 +158,7 @@ class Worker(Thread):
                         if link['href'].startswith('/') :
                             link['href'] = link['href'][1:]
 
-                        link['href'] = self.urlparse.scheme + '//' + currentDomain + '/' + link['href']
+                        link['href'] = self.urlparse.scheme + '://' + currentDomain + '/' + link['href']
 
                         link = link['href']
 
@@ -229,7 +184,7 @@ class Worker(Thread):
                             if link['href'].startswith('/') :
                                 link['href'] = link['href'][1:]
 
-                            link['href'] = self.urlparse.scheme + '//' + currentDomain + '/' + link['href']
+                            link['href'] = self.urlparse.scheme + '://' + currentDomain + '/' + link['href']
 
                         link = link['href']
 
@@ -261,6 +216,7 @@ class Worker(Thread):
                     #fetch the html
                     data = self.fetch(url)
 
+
                     if data == None:
                         
                         #log that we could not get data from the url
@@ -284,8 +240,12 @@ class Worker(Thread):
                         #get the meta desciption
                         metaDescription = self.getMetaDescription(bsObj)
                         
-                        #savet the link in the database
-                        self.saveLink(url, metaTitle, metaDescription)
+                        #add to the save queue
+                        self.urlDetails.append({
+                            'url': url,  
+                            'title': metaTitle,  
+                            'description': metaDescription  
+                        })
 
                         # only scrape pages that are relative to the start page
                         for i in internalLinks:
@@ -301,15 +261,29 @@ class Worker(Thread):
                 #set the next item for the while loop
                 item = self.queue.get()                
 
-            except Empty:
+            except Empty as e:
+                print(' ')
+                print(' -------- Thread empty ' + self.threadNum + ': -------- ');
+                print(e)
+                print(' ')
+                
+                print("-"*60)
+                traceback.print_exc(file=sys.stdout)
+                print("-"*60)
+
                 self.running = False
 
-            except:
-                self.exceptionCount = self.exceptionCount + 1
-                if self.exceptionCount == self.maxException:
-                    self.running = False
-                else:
-                    continue
+            except Exception as e:
+                print(' ')
+                print(' -------- Thread Running exception ' + self.threadNum + ': -------- ');
+                print(e)
+                print(' ')
+
+                print("-"*60)
+                traceback.print_exc(file=sys.stdout)
+                print("-"*60)
+
+                continue
 
         self.queue.task_done() 
 
