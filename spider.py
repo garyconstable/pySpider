@@ -85,8 +85,8 @@ class spider():
         print ("Spider: Waiting...")
 
         # create the sql woorker thread
-        self.sW = sqlWorker( self.pending, self.cur )
-        self.sW.start()
+        #self.sW = sqlWorker( self.pending, self.cur )
+        #self.sW.start()
 
 
         #while we are running
@@ -141,7 +141,7 @@ class spider():
                 w.join()
 
 
-        self.sW.join()
+        #self.sW.join()
 
 
         ## waiting for output

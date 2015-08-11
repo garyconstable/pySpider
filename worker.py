@@ -249,11 +249,13 @@ class Worker(Thread):
 
                         # only scrape pages that are relative to the start page
                         for i in internalLinks:
-                            self.queue.put({ 'url' : i })
+                            if i not in self.visitedLinks: 
+                                self.queue.put({ 'url' : i })
 
                         #add to the queue of external links
                         for i in externalLinks:
-                            self.queue.put({ 'url' : i })
+                            if i not in self.visitedLinks: 
+                                self.queue.put({ 'url' : i })
 
                         #have a quick nap
                         time.sleep(2)
