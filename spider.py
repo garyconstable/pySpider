@@ -37,35 +37,43 @@ class spider():
 
 
     def initDb(self):
+        '''
+        create the database connection
+        '''
         conn = pymysql.connect(host='', unix_socket='/tmp/mysql.sock', user='', passwd='', db='')
         self.cur = conn.cursor(pymysql.cursors.DictCursor)
         self.cur.execute('USE `0090-scraping`')
 
 
-    def randomSeed(self):
-        self.cur.execute('select url from urls order by rand() limit 1')
-        return self.cur.fetchone()['url']
-
-
     def startLink(self):
+        '''
+        add the start link to the queue
+        '''
         self.allExtLinks.put({ 
             'url': self.seedUrl()
         })
 
 
     def seedUrl(self):
+        '''
+        the start url
+        '''
         return 'http://www.reddit.com/'
         return 'http://www.bbc.co.uk'
         return 'http://shopping.indiatimes.com/lifestyle/bed-linen/8-designer-rajasthani-cotton-double-bed-sheets-with-16-pillow-covers/11574/p_B4661019'
 
 
     def createWorker(self, allExtLinks, theadNum, cur, visitedLinks):
+        '''
+        create the workers
+        '''
         return Worker(allExtLinks, theadNum, cur, visitedLinks)
-
-    def getUniques():
 
 
     def run(self):
+        '''
+        run the app
+        '''
 
         #we have 1 active link
         activeThreads = 1
