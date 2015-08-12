@@ -27,6 +27,8 @@ class spider():
         self.maxThreads = 5
         self.workers = []
         self.running  = True
+        self.lock = threading.Lock()
+
 
         #create db connection
         self.initDb()
@@ -113,16 +115,26 @@ class spider():
                 #if the worker is still running
                 if( w.isAlive() == True):
 
-                    #get the workers visited links
-                    for i in w.getVisitedLinks():
-                        self.visitedLinks.add(i)
+                    #lock the shared resource, allExtLinks
+                    try:
 
-                    #add all of the visited linsk to the worker thread
-                    w.setVisitedLinks(self.visitedLinks)
+                        self.lock.acquire()
 
-                    #append the waiting data
-                    for i in w.getUrlDetails():
-                        self.pending.put(i)
+                        #get the workers visited links
+                        for i in w.getVisitedLinks():
+                            self.visitedLinks.add(i)
+
+                        #add all of the visited linsk to the worker thread
+                        w.setVisitedLinks(self.visitedLinks)
+
+                        #append the waiting data
+                        for i in w.getUrlDetails():
+                            self.pending.put(i)
+
+                    #release the lock
+                    finally:
+                        self.lock.release()
+
 
                 # join the dead threads and count
                 if( w.isAlive() == False):
