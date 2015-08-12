@@ -10,6 +10,8 @@ from worker import Worker
 from sqlworker import sqlWorker
 import pymysql
 
+from conn import *
+
 
 
 
@@ -22,7 +24,7 @@ class spider():
         self.visitedLinks = set()
 
         self.allExtLinks = Queue()
-        self.maxThreads = 10
+        self.maxThreads = 5
         self.workers = []
         self.running  = True
 
@@ -40,7 +42,7 @@ class spider():
         '''
         create the database connection
         '''
-        conn = pymysql.connect(host='', unix_socket='/tmp/mysql.sock', user='', passwd='', db='')
+        #conn = pymysql.connect(host='212.67.214.24', unix_socket='/tmp/mysql.sock', user='gary', passwd='Sarah2004!', db='0090-scraping')
         self.cur = conn.cursor(pymysql.cursors.DictCursor)
         self.cur.execute('USE `0090-scraping`')
 
