@@ -59,8 +59,7 @@ class Worker(Thread):
         '''
         add to the workers visited links
         '''
-        for i in visitedLinks:
-            self.visitedLinks.add(i)
+        self.visitedLinks.union(visitedLinks)
 
 
     def getCurrentDomain(self, page):
@@ -235,17 +234,17 @@ class Worker(Thread):
                         internalLinks, externalLinks = self.getLinks(bsObj, url)
              
                         #get the meta title
-                        metaTitle = self.getMetaTitle(bsObj)
+                        #metaTitle = self.getMetaTitle(bsObj)
 
                         #get the meta desciption
-                        metaDescription = self.getMetaDescription(bsObj)
+                        #metaDescription = self.getMetaDescription(bsObj)
                         
                         #add to the save queue
-                        self.urlDetails.append({
-                            'url': url,  
-                            'title': metaTitle,  
-                            'description': metaDescription  
-                        })
+                        #self.urlDetails.append({
+                        #    'url': url,  
+                        #    'title': metaTitle,  
+                        #    'description': metaDescription  
+                        #})
 
                         # only scrape pages that are relative to the start page
                         for i in internalLinks:

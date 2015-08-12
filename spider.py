@@ -121,15 +121,14 @@ class spider():
                         self.lock.acquire()
 
                         #get the workers visited links
-                        for i in w.getVisitedLinks():
-                            self.visitedLinks.add(i)
+                        self.visitedLinks.union(w.getVisitedLinks())
 
                         #add all of the visited linsk to the worker thread
                         w.setVisitedLinks(self.visitedLinks)
 
                         #append the waiting data
-                        for i in w.getUrlDetails():
-                            self.pending.put(i)
+                        #for i in w.getUrlDetails():
+                        #    self.pending.put(i)
 
                     #release the lock
                     finally:
