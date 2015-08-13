@@ -24,7 +24,7 @@ class spider():
         self.visitedLinks = set()
 
         self.allExtLinks = Queue()
-        self.maxThreads = 5
+        self.maxThreads = 2
         self.workers = []
         self.running  = True
         self.lock = threading.Lock()
@@ -62,7 +62,7 @@ class spider():
         '''
         the start url
         '''
-        return 'http://www.reddit.com/'
+        #return 'http://www.reddit.com/'
         return 'http://www.bbc.co.uk'
         return 'http://shopping.indiatimes.com/lifestyle/bed-linen/8-designer-rajasthani-cotton-double-bed-sheets-with-16-pillow-covers/11574/p_B4661019'
 
