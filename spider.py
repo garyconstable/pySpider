@@ -9,7 +9,7 @@ import threading
 from worker import Worker
 from sqlworker import sqlWorker
 import pymysql
-
+import csv
 from conn import *
 
 
@@ -62,7 +62,7 @@ class spider():
         '''
         the start url
         '''
-        #return 'http://www.reddit.com/'
+        return 'http://www.reddit.com/'
         return 'http://www.bbc.co.uk'
         return 'http://shopping.indiatimes.com/lifestyle/bed-linen/8-designer-rajasthani-cotton-double-bed-sheets-with-16-pillow-covers/11574/p_B4661019'
 
@@ -92,13 +92,14 @@ class spider():
         #self.sW = sqlWorker( self.pending, self.cur )
         #self.sW.start()
 
+        self.written = 0
 
         #while we are running
         while self.running :
 
             #show the the loop is running
             print(' ')
-            print(' -------- Ext Links ' + str(self.allExtLinks.qsize()) + ', Threads: ' + str(threading.activeCount()) + ' ----------'  )
+            print(' -------- Ext Links ' + str(self.allExtLinks.qsize()) + ', Threads: ' + str(threading.activeCount()) + ', saved: ' + str(self.written) +' ----------'  )
             print(' ')
 
             #if thread count < max - start new thread
@@ -141,6 +142,15 @@ class spider():
                     activeThreads = activeThreads - 1
                     self.workers.remove(w)
 
+
+            #write the csv file here
+            with open('pending-links.csv', 'a', newline='') as csvfile:
+                writer = csv.writer(csvfile, delimiter=' ',quotechar='|', quoting=csv.QUOTE_MINIMAL)
+                for url in self.visitedLinks:
+                    writer.writerow([url])
+                    self.written = self.written + 1
+
+
             #sleep 1 second per loop
             time.sleep(1)    
 
@@ -159,7 +169,6 @@ class spider():
 
         ## waiting for output
         print ("Spider: Complete...")
-
 
 
 
