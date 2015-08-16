@@ -9,35 +9,27 @@ from bs4 import BeautifulSoup
 import logging
 import re
 from queue import *
-
 import pymysql
-
 import time
 
 
-'''
-logging config
-'''
 logging.basicConfig(level=logging.DEBUG)
-
-
 
 
 class Worker(Thread):
 
 
-    def __init__( self, queue, threadNum, cur, visitedLinks ):
-
+    def __init__( self, queue, threadNum, visitedLinks, lock ):
         '''
         init with the queue and set the logger - this worker is a thread extended class
         '''
         Thread.__init__(self)
-        self.threadNum = str(threadNum)
-        self.cursor = cur      
+        self.threadNum = str(threadNum)    
         self.visitedLinks = visitedLinks
         self.queue = queue;
         self.urlDetails = []
         self.running = True
+        self.lock = lock
 
 
     def join(self, timeout=None):
@@ -52,14 +44,19 @@ class Worker(Thread):
         '''
         return the workers current visited links
         '''
-        return self.visitedLinks
+        self.lock.acquire()
+        tmp = self.visitedLinks
+        self.lock.release()
+        return tmp
 
 
     def setVisitedLinks(self, visitedLinks):
         '''
         add to the workers visited links
         '''
+        self.lock.acquire()
         self.visitedLinks.union(visitedLinks)
+        self.lock.release()        
 
 
     def getCurrentDomain(self, page):
@@ -85,10 +82,8 @@ class Worker(Thread):
         extract the page meta description
         '''
         description = html.findAll(attrs={"name":"description"})
-
         if len(description) and description[0]['content'] != None:
             return description[0]['content'].encode('utf-8')
-
         return ""
 
 
@@ -107,9 +102,7 @@ class Worker(Thread):
         if so return data
         '''
         uri = self.encodeLink(uri)
-
-        self.visitedLinks.add(uri)
-
+        self.visitedLinks.add(uri)        
         try:
             h = urlopen(uri)
             x =  h.info()
@@ -133,13 +126,10 @@ class Worker(Thread):
         find all anchor linsk within the page
         add to either array depending on its http(s) status
         '''
-
         internalLinks = [];
         externalLinks = [];
-        
         currentDomain = self.getCurrentDomain(url)
         self.urlparse = urlparse(url)
-       
 
         for link in page.findAll('a', href=True):
 
@@ -189,7 +179,6 @@ class Worker(Thread):
 
                         internalLinks.append(link)
 
-
         return internalLinks, externalLinks
 
 
@@ -209,20 +198,17 @@ class Worker(Thread):
                 #the current url
                 url = item['url']
 
+                #create a lock
+                self.lock.acquire()
+
                 #make sure we have not yet visited
                 if( url not in self.visitedLinks ):
 
                     #fetch the html
                     data = self.fetch(url)
 
-
-                    if data == None:
-                        
-                        #log that we could not get data from the url
-                        #logging.info('[-] Thread: ' + self.threadNum + ' - Could not fetch: %s because type != text/html', url)
-                        a = 2
-
-                    else:
+                    #only if we have a page
+                    if data != None:
 
                         #log the current url we are scraping
                         logging.info('[+] Thread: ' + self.threadNum + ' - Success fetched: %s', url)
@@ -232,7 +218,7 @@ class Worker(Thread):
 
                         #get the internal and external links
                         internalLinks, externalLinks = self.getLinks(bsObj, url)
-             
+                        
                         #get the meta title
                         #metaTitle = self.getMetaTitle(bsObj)
 
@@ -245,7 +231,7 @@ class Worker(Thread):
                         #    'title': metaTitle,  
                         #    'description': metaDescription  
                         #})
-
+                        
                         # only scrape pages that are relative to the start page
                         for i in internalLinks:
                             if i not in self.visitedLinks: 
@@ -256,8 +242,12 @@ class Worker(Thread):
                             if i not in self.visitedLinks: 
                                 self.queue.put({ 'url' : i })
 
-                        #have a quick nap
-                        time.sleep(2)
+
+                #release the lock       
+                self.lock.release()
+
+                #have a quick nap
+                time.sleep(2)
 
                 #set the next item for the while loop
                 item = self.queue.get()                
@@ -286,8 +276,4 @@ class Worker(Thread):
 
                 continue
 
-        self.queue.task_done() 
-
-                
-
-        
+        self.queue.task_done()  
