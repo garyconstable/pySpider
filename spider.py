@@ -7,6 +7,7 @@ import time
 from queue import *
 import threading
 from worker import Worker
+from horizonWorker import horizonWorker
 import csv
 
 
@@ -19,7 +20,7 @@ class spider():
         # set vars 
         self.visitedLinks = set()
         self.allExtLinks = Queue()
-        self.maxThreads = 10
+        self.maxThreads = 3
         self.workers = []
         self.writtenLinks = []
         self.running  = True
@@ -73,27 +74,6 @@ class spider():
                 })
 
 
-    def saveHorizon(self):
-        '''
-        save the queue
-        '''
-        print(' --- run timer ---')
-        timer = threading.Timer(60.0, self.saveHorizon)
-        timer.start()
-
-        self.lock.acquire()
-        with open('csv/horizon.csv', 'a', newline='') as csvfile:
-            writer = csv.writer(csvfile, delimiter=' ',quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            for elem in list(self.allExtLinks.queue):
-                if(elem['url'] not in self.horizon):
-                    self.horizon.append(elem['url'])
-                    writer.writerow([elem['url']])    
-        self.lock.release()
-
-        #timer.cancel()
-        #timer.join()
-
-
     def loadVisited(self):
         '''
         load the complete list of visited links
@@ -124,14 +104,19 @@ class spider():
         '''
         run the app
         '''
+
+        ## waiting for output
+        print ("Spider: Waiting...")
+
+        #create the horizon worker
+        self.horizonRunner = horizonWorker(self.allExtLinks, self.horizon, self.lock)
+        self.horizonRunner.start()
+
         #we have 1 active link
         activeThreads = 1
 
         #the sql worker
         self.pending  = Queue()
-
-        ## waiting for output
-        print ("Spider: Waiting...")
 
         self.written = 0
 
@@ -172,9 +157,6 @@ class spider():
             #save the visited links
             self.saveVisited()
 
-            #task run every few mins
-            self.saveHorizon()
-
             #sleep 1 second per loop
             time.sleep(1)    
 
@@ -186,6 +168,10 @@ class spider():
         while threading.activeCount()>1:            
             for w in self.workers:
                 w.join()             
+
+        #terminate the horizon worker 
+        self.horizonRunner.setRunning(False)
+        self.horizonRunner.join()
 
         ## waiting for output
         print ("Spider: Complete...")

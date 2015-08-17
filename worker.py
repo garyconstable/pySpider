@@ -198,11 +198,11 @@ class Worker(Thread):
                 #the current url
                 url = item['url']
 
-                #create a lock
-                self.lock.acquire()
-
                 #make sure we have not yet visited
                 if( url not in self.visitedLinks ):
+
+                    #create a lock
+                    self.lock.acquire()
 
                     #fetch the html
                     data = self.fetch(url)
@@ -242,13 +242,16 @@ class Worker(Thread):
                             if i not in self.visitedLinks: 
                                 self.queue.put({ 'url' : i })
 
+                    #have a quick nap
+                    time.sleep(2)
 
-                #release the lock       
-                self.lock.release()
+                    #release the lock       
+                    self.lock.release()
 
-                #have a quick nap
-                time.sleep(2)
 
+                #let the other threads join in!
+                time.sleep(0.5)
+                 
                 #set the next item for the while loop
                 item = self.queue.get()                
 

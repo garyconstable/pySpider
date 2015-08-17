@@ -36,7 +36,7 @@ with open('csv/visited-links.csv', 'w', newline='') as csvfile:
 
 
 '''
-trucate the pending links file
+truncate the pending links file
 '''
 with open('csv/pending-links.csv', "w"):
    pass
