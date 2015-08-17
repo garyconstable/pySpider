@@ -32,6 +32,13 @@ class Worker(Thread):
         self.lock = lock
 
 
+        self.excludedDomains = []
+        self.excludedDomains.append('www.reddit.com')
+        self.excludedDomains.append('www.deviantart.com')
+
+        
+
+
     def join(self, timeout=None):
         '''
         when the thread joins send the loop end signal
@@ -198,8 +205,10 @@ class Worker(Thread):
                 #the current url
                 url = item['url']
 
+                currentDomain = self.getCurrentDomain(url)
+
                 #make sure we have not yet visited
-                if( url not in self.visitedLinks ):
+                if( url not in self.visitedLinks and currentDomain not in self.excludedDomains ):
 
                     #create a lock
                     self.lock.acquire()
@@ -242,16 +251,11 @@ class Worker(Thread):
                             if i not in self.visitedLinks: 
                                 self.queue.put({ 'url' : i })
 
-                    else:
-                        #log the current url we are scraping
-                        logging.info('[+] Thread: ' + self.threadNum + ' - Failed to fetch: %s', url)
-
                     #have a quick nap
-                    time.sleep(2)
+                    time.sleep(0.5)
 
                     #release the lock       
                     self.lock.release()
-
 
                 #let the other threads join in!
                 time.sleep(0.5)
@@ -261,7 +265,7 @@ class Worker(Thread):
 
             except Empty as e:
                 print(' ')
-                print(' -------- Thread empty ' + self.threadNum + ': -------- ');
+                print(' -------- Thread empty ' + self.threadNum + ' url: ' + url + ' -------- ');
                 print(e)
                 print(' ')
                 
@@ -273,7 +277,7 @@ class Worker(Thread):
 
             except Exception as e:
                 print(' ')
-                print(' -------- Thread Running exception ' + self.threadNum + ': -------- ');
+                print(' -------- Thread Running exception ' + self.threadNum + ' url: ' + url + ' -------- ');
                 print(e)
                 print(' ')
 

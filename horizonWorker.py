@@ -52,8 +52,10 @@ class horizonWorker(Thread):
 
                 self.lock.acquire()
 
+                print('')
                 print(' -------- Horizon worker begin dump: ' + str(self.queue.qsize()) +' ---------- ')
-
+                print('')
+                
                 with open('csv/horizon.csv', 'a', newline='') as csvfile:
                     writer = csv.writer(csvfile, delimiter=' ',quotechar='|', quoting=csv.QUOTE_MINIMAL)
                     for elem in list(self.queue.queue):
@@ -63,7 +65,7 @@ class horizonWorker(Thread):
 
                 self.lock.release()
 
-                time.sleep(30)
+                time.sleep(240)
 
             except Exception as e:
 

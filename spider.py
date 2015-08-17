@@ -20,7 +20,7 @@ class spider():
         # set vars 
         self.visitedLinks = set()
         self.allExtLinks = Queue()
-        self.maxThreads = 3
+        self.maxThreads = 5
         self.workers = []
         self.writtenLinks = []
         self.running  = True
@@ -64,7 +64,7 @@ class spider():
 
     def loadHorizon(self):
         '''
-        load the horizon list 
+        load the horizon list - links not yet visited 
         '''
         with open('csv/horizon.csv', newline='') as csvfile:
             reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
@@ -90,7 +90,7 @@ class spider():
         '''
         self.lock.acquire()            
         #links that we have visited
-        with open('csv/pending-links.csv', 'a', newline='') as csvfile:
+        with open('csv/session-links.csv', 'a', newline='') as csvfile:
             writer = csv.writer(csvfile, delimiter=' ',quotechar='|', quoting=csv.QUOTE_MINIMAL)
             for url in self.visitedLinks:
                 if url not in self.writtenLinks:
@@ -104,10 +104,6 @@ class spider():
         '''
         run the app
         '''
-
-        ## waiting for output
-        print ("Spider: Waiting...")
-
         #create the horizon worker
         self.horizonRunner = horizonWorker(self.allExtLinks, self.horizon, self.lock)
         self.horizonRunner.start()
@@ -158,7 +154,7 @@ class spider():
             self.saveVisited()
 
             #sleep 1 second per loop
-            time.sleep(1)    
+            time.sleep(0.5)    
 
             #end the loop if no more
             if( self.allExtLinks.empty() == True ):
@@ -174,7 +170,7 @@ class spider():
         self.horizonRunner.join()
 
         ## waiting for output
-        print ("Spider: Complete...")
+        print(' -------- Complete: horizon ' + str(self.allExtLinks.qsize()) + ', Threads: ' + str(threading.activeCount()) + ', saved: ' + str(self.written) +' ----------'  )
 
 if __name__ == '__main__':
     s = spider();
