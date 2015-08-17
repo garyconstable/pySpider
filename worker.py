@@ -242,6 +242,10 @@ class Worker(Thread):
                             if i not in self.visitedLinks: 
                                 self.queue.put({ 'url' : i })
 
+                    else:
+                        #log the current url we are scraping
+                        logging.info('[+] Thread: ' + self.threadNum + ' - Failed to fetch: %s', url)
+
                     #have a quick nap
                     time.sleep(2)
 
