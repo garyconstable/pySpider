@@ -20,7 +20,7 @@ class spider():
         # set vars 
         self.visitedLinks = set()
         self.allExtLinks = Queue()
-        self.maxThreads = 5
+        self.maxThreads = 3
         self.workers = []
         self.writtenLinks = []
         self.running  = True
