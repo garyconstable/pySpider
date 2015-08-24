@@ -7,8 +7,8 @@ import time
 from queue import *
 import threading
 from worker import Worker
-from horizonWorker import horizonWorker
-import csv
+from conn import *
+import pymysql.cursors
 
 
 class spider():
@@ -18,11 +18,9 @@ class spider():
 
 
         # set vars 
-        self.visitedLinks = set()
         self.allExtLinks = Queue()
         self.maxThreads = 5
         self.workers = []
-        self.writtenLinks = []
         self.running  = True
         self.horizon = []
         self.lock = threading.Semaphore(1)
@@ -31,9 +29,6 @@ class spider():
         self.loadHorizon()
         if int(self.allExtLinks.qsize()) < 1:
             self.startLink()
-
-        #already visited links
-        self.loadVisited()
 
         #run the spider
         self.run()
@@ -44,69 +39,42 @@ class spider():
         add the start link to the queue
         '''
         self.allExtLinks.put({ 
-            'url': self.seedUrl()
+            'url': 'http://www.reddit.com/'
         })
 
 
-    def seedUrl(self):
-        '''
-        the start url
-        '''
-        return 'http://www.reddit.com/'
-
-
-    def createWorker(self, allExtLinks, theadNum, visitedLinks, lock):
+    def createWorker(self, allExtLinks, theadNum, lock):
         '''
         create the workers
         '''
-        return Worker(allExtLinks, theadNum, visitedLinks, lock)
+        return Worker(allExtLinks, theadNum, lock)
 
 
     def loadHorizon(self):
         '''
         load the horizon list - links not yet visited 
         '''
-        with open('csv/horizon.csv', newline='') as csvfile:
-            reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
-            for row in reader: 
-                self.allExtLinks.put({ 
-                    'url': row[0]
-                })
+        try:
 
+            print(' ---  Begin load pending ---')
 
-    def loadVisited(self):
-        '''
-        load the complete list of visited links
-        '''
-        with open('csv/visited-links.csv', newline='') as csvfile:
-            reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
-            for row in reader: 
-                self.visitedLinks.add(row[0])
+            with conn.cursor() as cursor:
+                cursor.execute('select url from pending', () )
+                result = cursor.fetchall()
+                for i in result:
+                    self.allExtLinks.put({ 
+                        'url': i[0]
+                    })
 
+            print(' ---  End load pending ---')
 
-    def saveVisited(self):
-        '''
-        save the visited
-        '''
-        self.lock.acquire()            
-        #links that we have visited
-        with open('csv/session-links.csv', 'a', newline='') as csvfile:
-            writer = csv.writer(csvfile, delimiter=' ',quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            for url in self.visitedLinks:
-                if url not in self.writtenLinks:
-                    writer.writerow([url])
-                    self.written = self.written + 1
-                    self.writtenLinks.append(url)
-        self.lock.release()
-
+        finally:
+            conn.close()
 
     def run(self):
         '''
         run the app
         '''
-        #create the horizon worker
-        self.horizonRunner = horizonWorker(self.allExtLinks, self.horizon, self.lock)
-        self.horizonRunner.start()
 
         #we have 1 active link
         activeThreads = 1
@@ -127,7 +95,7 @@ class spider():
             #if thread count < max - start new thread
             if threading.activeCount() < self.maxThreads:
 
-                w = self.createWorker( self.allExtLinks, activeThreads, self.visitedLinks, self.lock )
+                w = self.createWorker( self.allExtLinks, activeThreads, self.lock )
                 activeThreads = activeThreads + 1
                 self.workers.append(w)
                 w.start()
@@ -135,23 +103,11 @@ class spider():
             #end the dead workers
             for w in self.workers:
 
-                #if the worker is still running
-                if( w.isAlive() == True):
-                
-                    #get the workers visited links
-                    self.visitedLinks.union(w.getVisitedLinks())
-
-                    #add all of the visited linsk to the worker thread
-                    w.setVisitedLinks(self.visitedLinks)
-
                 # join the dead threads and count
                 if( w.isAlive() == False):
                     w.join()
                     activeThreads = activeThreads - 1
                     self.workers.remove(w)
-
-            #save the visited links
-            self.saveVisited()
 
             #sleep 1 second per loop
             time.sleep(0.5)    
@@ -164,10 +120,6 @@ class spider():
         while threading.activeCount()>1:            
             for w in self.workers:
                 w.join()             
-
-        #terminate the horizon worker 
-        self.horizonRunner.setRunning(False)
-        self.horizonRunner.join()
 
         ## waiting for output
         print(' -------- Complete: horizon ' + str(self.allExtLinks.qsize()) + ', Threads: ' + str(threading.activeCount()) + ', saved: ' + str(self.written) +' ----------'  )

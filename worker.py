@@ -9,7 +9,8 @@ from bs4 import BeautifulSoup
 import logging
 import re
 from queue import *
-import pymysql
+from conn import *
+import pymysql.cursors
 import time
 
 
@@ -19,25 +20,26 @@ logging.basicConfig(level=logging.DEBUG)
 class Worker(Thread):
 
 
-    def __init__( self, queue, threadNum, visitedLinks, lock ):
+    def __init__( self, queue, threadNum, lock ):
         '''
         init with the queue and set the logger - this worker is a thread extended class
         '''
         Thread.__init__(self)
         self.threadNum = str(threadNum)    
-        self.visitedLinks = visitedLinks
         self.queue = queue;
-        self.urlDetails = []
         self.running = True
         self.lock = lock
-
-
         self.excludedDomains = []
+        self.setExcludedDomains()
+
+
+    def setExcludedDomains(self):
+        '''
+        domains that we want to exclude from the search
+        '''
         self.excludedDomains.append('www.reddit.com')
         self.excludedDomains.append('www.deviantart.com')
         self.excludedDomains.append('comments.deviantart.com')
-
-        
 
 
     def join(self, timeout=None):
@@ -45,26 +47,7 @@ class Worker(Thread):
         when the thread joins send the loop end signal
         '''
         self.running = False
-        super(Worker, self).join(timeout)
-
-
-    def getVisitedLinks(self):
-        '''
-        return the workers current visited links
-        '''
-        self.lock.acquire()
-        tmp = self.visitedLinks
-        self.lock.release()
-        return tmp
-
-
-    def setVisitedLinks(self, visitedLinks):
-        '''
-        add to the workers visited links
-        '''
-        self.lock.acquire()
-        self.visitedLinks.union(visitedLinks)
-        self.lock.release()        
+        super(Worker, self).join(timeout)      
 
 
     def getCurrentDomain(self, page):
@@ -73,26 +56,6 @@ class Worker(Thread):
         '''
         parsed_uri = urlparse(page)
         return parsed_uri.netloc
-
-
-    def getMetaTitle(self, html):
-        '''
-        extract the page meta title
-        '''
-        if html.title is not None:
-            return html.title.string.encode('utf-8')
-
-        return ""
-
-
-    def getMetaDescription(self, html):
-        '''
-        extract the page meta description
-        '''
-        description = html.findAll(attrs={"name":"description"})
-        if len(description) and description[0]['content'] != None:
-            return description[0]['content'].encode('utf-8')
-        return ""
 
 
     def encodeLink(self, link):
@@ -109,8 +72,7 @@ class Worker(Thread):
         url open, check the headers for text/html
         if so return data
         '''
-        uri = self.encodeLink(uri)
-        self.visitedLinks.add(uri)        
+        uri = self.encodeLink(uri)      
         try:
             h = urlopen(uri)
             x =  h.info()
@@ -120,13 +82,6 @@ class Worker(Thread):
                 return None
         except urllib.error.URLError:
             return None
-
-                
-    def getUrlDetails(self):
-        '''
-        get the list of url urlDetails
-        '''
-        return self.urlDetails
 
 
     def getLinks(self, page, url):
@@ -190,6 +145,37 @@ class Worker(Thread):
         return internalLinks, externalLinks
 
 
+    def notInPending(self, url):
+        '''
+        test to see if the url is part of the pending list
+        '''
+        result = None
+        
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute( "select * from pending where `url`=%s", (url) )
+                result = cursor.fetchall()
+        finally:
+            conn.close()
+
+        if result != None:
+            return False
+        else:
+            return True
+
+
+    def writeLinksToPending(self, url):
+        '''
+        add the link to the pending table
+        '''
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute( "insert into pending (url, dateCreated, dateUpdated) values ( %s, NOW(), NOW() )" , (url) )
+            conn.commit()
+        finally:
+            conn.close()
+
+
     def run(self):
         '''
         thread run, check url
@@ -209,7 +195,7 @@ class Worker(Thread):
                 currentDomain = self.getCurrentDomain(url)
 
                 #make sure we have not yet visited
-                if( url not in self.visitedLinks and currentDomain not in self.excludedDomains ):
+                if( currentDomain not in self.excludedDomains and self.notInPending(url) ):
 
                     #create a lock
                     self.lock.acquire()
@@ -229,28 +215,15 @@ class Worker(Thread):
                         #get the internal and external links
                         internalLinks, externalLinks = self.getLinks(bsObj, url)
                         
-                        #get the meta title
-                        #metaTitle = self.getMetaTitle(bsObj)
-
-                        #get the meta desciption
-                        #metaDescription = self.getMetaDescription(bsObj)
-                        
-                        #add to the save queue
-                        #self.urlDetails.append({
-                        #    'url': url,  
-                        #    'title': metaTitle,  
-                        #    'description': metaDescription  
-                        #})
-                        
                         # only scrape pages that are relative to the start page
                         for i in internalLinks:
-                            if i not in self.visitedLinks: 
-                                self.queue.put({ 'url' : i })
+                            self.writeLinksToPending(i)
+                            self.queue.put({ 'url' : i })
 
                         #add to the queue of external links
                         for i in externalLinks:
-                            if i not in self.visitedLinks: 
-                                self.queue.put({ 'url' : i })
+                            self.writeLinksToPending(i)
+                            self.queue.put({ 'url' : i })
 
                     #have a quick nap
                     time.sleep(0.5)
