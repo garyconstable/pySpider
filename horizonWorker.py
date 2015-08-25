@@ -41,9 +41,6 @@ class horizonWorker(Thread):
         '''
         thread run ...
         '''
-        
-        #get the item from the queue
-        item = self.queue.get()
 
         #while there is an item in the current queue
         while self.running == True:                 
@@ -62,6 +59,10 @@ class horizonWorker(Thread):
                         if(elem['url'] not in self.horizon):
                             self.horizon.append(elem['url'])
                             writer.writerow([elem['url']])    
+
+                print('')
+                print(' -------- Horizon worker end dump: ' + str(self.queue.qsize()) +' ---------- ')
+                print('')
 
                 self.lock.release()
 

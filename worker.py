@@ -35,6 +35,7 @@ class Worker(Thread):
         self.excludedDomains = []
         self.excludedDomains.append('www.reddit.com')
         self.excludedDomains.append('www.deviantart.com')
+        self.excludedDomains.append('comments.deviantart.com')
 
         
 
@@ -113,7 +114,7 @@ class Worker(Thread):
         try:
             h = urlopen(uri)
             x =  h.info()
-            if 'text/html' in x['Content-Type'].lower():
+            if x['Content-Type'] != None and 'text/html' in x['Content-Type'].lower():
                 return h.read()
             else:
                 return None
