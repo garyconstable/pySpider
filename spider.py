@@ -7,8 +7,11 @@ import time
 from queue import *
 import threading
 from worker import Worker
-from conn import *
-import pymysql.cursors
+#from conn import *
+#import pymysql.cursors
+import pymysql
+import sqlalchemy
+from sqlalchemy import create_engine
 
 
 class spider():
@@ -16,6 +19,8 @@ class spider():
 
     def __init__(self):
 
+        #db connect
+        self.db_engine = create_engine('mysql+pymysql://gary:Sarah2004!@212.67.214.24/0090-scraping', pool_recycle=3600)
 
         # set vars 
         self.allExtLinks = Queue()
@@ -47,29 +52,22 @@ class spider():
         '''
         create the workers
         '''
-        return Worker(allExtLinks, theadNum, lock)
+        return Worker(allExtLinks, theadNum, lock, self.db_engine)
 
 
     def loadHorizon(self):
         '''
         load the horizon list - links not yet visited 
         '''
-        try:
+        print(' ---  Begin load pending ---')
 
-            print(' ---  Begin load pending ---')
+        for row in self.db_engine.execute('select url from pending'):
+            self.allExtLinks.put({ 
+                'url': row['url']
+            })
 
-            with conn.cursor() as cursor:
-                cursor.execute('select url from pending', () )
-                result = cursor.fetchall()
-                for i in result:
-                    self.allExtLinks.put({ 
-                        'url': i[0]
-                    })
+        print(' ---  End load pending ---')
 
-            print(' ---  End load pending ---')
-
-        finally:
-            conn.close()
 
     def run(self):
         '''
@@ -126,3 +124,5 @@ class spider():
 
 if __name__ == '__main__':
     s = spider();
+
+    

@@ -9,9 +9,12 @@ from bs4 import BeautifulSoup
 import logging
 import re
 from queue import *
-from conn import *
-import pymysql.cursors
+#from conn import *
+#import pymysql.cursors
 import time
+import pymysql
+import sqlalchemy
+from sqlalchemy import create_engine
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -20,7 +23,7 @@ logging.basicConfig(level=logging.DEBUG)
 class Worker(Thread):
 
 
-    def __init__( self, queue, threadNum, lock ):
+    def __init__( self, queue, threadNum, lock, engine ):
         '''
         init with the queue and set the logger - this worker is a thread extended class
         '''
@@ -31,6 +34,7 @@ class Worker(Thread):
         self.lock = lock
         self.excludedDomains = []
         self.setExcludedDomains()
+        self.engine = engine
 
 
     def setExcludedDomains(self):
@@ -76,6 +80,7 @@ class Worker(Thread):
         try:
             h = urlopen(uri)
             x =  h.info()
+            logging.info('[+] Opened: %s', uri)
             if x['Content-Type'] != None and 'text/html' in x['Content-Type'].lower():
                 return h.read()
             else:
@@ -149,24 +154,21 @@ class Worker(Thread):
         '''
         test to see if the url is part of the pending list
         '''
-        result = None
-        
-        try:
-            with conn.cursor() as cursor:
-                cursor.execute( "select * from pending where `url`=%s", (url) )
-                result = cursor.fetchall()
-        finally:
-            conn.close()
-
-        if result != None:
-            return False
-        else:
-            return True
+        #not in pending list
+        result = True   
+        connection = self.engine.connect()
+        result = connection.execute( "select * from pending where `url`=%s", (url) )
+        for row in result:
+            result = False
+            break
+        connection.close()
+        return result
 
 
     def writeLinksToPending(self, url):
         '''
         add the link to the pending table
+        '''
         '''
         try:
             with conn.cursor() as cursor:
@@ -174,7 +176,11 @@ class Worker(Thread):
             conn.commit()
         finally:
             conn.close()
-
+        '''
+        connection = self.engine.connect()
+        connection.execute( "insert into pending (url, dateCreated, dateUpdated) values ( %s, NOW(), NOW() )" , (url) )
+        #connection.commit()
+        connection.close()
 
     def run(self):
         '''
@@ -195,13 +201,15 @@ class Worker(Thread):
                 currentDomain = self.getCurrentDomain(url)
 
                 #make sure we have not yet visited
-                if( currentDomain not in self.excludedDomains and self.notInPending(url) ):
+                if( currentDomain not in self.excludedDomains ):
 
                     #create a lock
                     self.lock.acquire()
 
                     #fetch the html
                     data = self.fetch(url)
+
+                    print('Fetched url: + url')
 
                     #only if we have a page
                     if data != None:
@@ -217,13 +225,15 @@ class Worker(Thread):
                         
                         # only scrape pages that are relative to the start page
                         for i in internalLinks:
-                            self.writeLinksToPending(i)
-                            self.queue.put({ 'url' : i })
+                            if( self.notInPending(i) ):
+                                self.writeLinksToPending(i)
+                                self.queue.put({ 'url' : i })
 
                         #add to the queue of external links
                         for i in externalLinks:
-                            self.writeLinksToPending(i)
-                            self.queue.put({ 'url' : i })
+                            if( self.notInPending(i) ):
+                                self.writeLinksToPending(i)
+                                self.queue.put({ 'url' : i })
 
                     #have a quick nap
                     time.sleep(0.5)
