@@ -157,10 +157,10 @@ class Worker(Thread):
         #not in pending list
         result = True   
         connection = self.engine.connect()
-        result = connection.execute( "select * from pending where `url`=%s", (url) )
+        result = connection.execute( "select count(*) as total from pending where `url`=%s", (url) )
         for row in result:
-            result = False
-            break
+            if( row['total']) > 0:
+                result = False
         connection.close()
         return result
 
@@ -169,17 +169,8 @@ class Worker(Thread):
         '''
         add the link to the pending table
         '''
-        '''
-        try:
-            with conn.cursor() as cursor:
-                cursor.execute( "insert into pending (url, dateCreated, dateUpdated) values ( %s, NOW(), NOW() )" , (url) )
-            conn.commit()
-        finally:
-            conn.close()
-        '''
         connection = self.engine.connect()
         connection.execute( "insert into pending (url, dateCreated, dateUpdated) values ( %s, NOW(), NOW() )" , (url) )
-        #connection.commit()
         connection.close()
 
     def run(self):
@@ -197,52 +188,38 @@ class Worker(Thread):
 
                 #the current url
                 url = item['url']
-
+                logging.info('[+] Thread: ' + self.threadNum + ' - New url: %s', url)
                 currentDomain = self.getCurrentDomain(url)
 
-                #make sure we have not yet visited
-                if( currentDomain not in self.excludedDomains ):
+                #fetch the html
+                data = self.fetch(url)
 
-                    #create a lock
-                    self.lock.acquire()
+                #only if we have a page
+                if data != None:
 
-                    #fetch the html
-                    data = self.fetch(url)
+                    #log the current url we are scraping
+                    logging.info('[+] Thread: ' + self.threadNum + ' - Success fetched: %s', url)
 
-                    print('Fetched url: + url')
+                    #create the beautifulSoup object
+                    bsObj = BeautifulSoup(data, 'lxml')
 
-                    #only if we have a page
-                    if data != None:
+                    #get the internal and external links
+                    internalLinks, externalLinks = self.getLinks(bsObj, url)
+                    
+                    # only scrape pages that are relative to the start page
+                    for i in internalLinks:
+                        if( self.notInPending(i) ):
+                            self.writeLinksToPending(i)
+                            self.queue.put({ 'url' : i })
 
-                        #log the current url we are scraping
-                        logging.info('[+] Thread: ' + self.threadNum + ' - Success fetched: %s', url)
-
-                        #create the beautifulSoup object
-                        bsObj = BeautifulSoup(data, 'lxml')
-
-                        #get the internal and external links
-                        internalLinks, externalLinks = self.getLinks(bsObj, url)
-                        
-                        # only scrape pages that are relative to the start page
-                        for i in internalLinks:
-                            if( self.notInPending(i) ):
-                                self.writeLinksToPending(i)
-                                self.queue.put({ 'url' : i })
-
-                        #add to the queue of external links
-                        for i in externalLinks:
-                            if( self.notInPending(i) ):
-                                self.writeLinksToPending(i)
-                                self.queue.put({ 'url' : i })
-
-                    #have a quick nap
-                    time.sleep(0.5)
-
-                    #release the lock       
-                    self.lock.release()
+                    #add to the queue of external links
+                    for i in externalLinks:
+                        if( self.notInPending(i) ):
+                            self.writeLinksToPending(i)
+                            self.queue.put({ 'url' : i })
 
                 #let the other threads join in!
-                time.sleep(0.5)
+                time.sleep(1)
                  
                 #set the next item for the while loop
                 item = self.queue.get()                

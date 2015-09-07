@@ -20,11 +20,11 @@ class spider():
     def __init__(self):
 
         #db connect
-        self.db_engine = create_engine('mysql+pymysql://gary:Sarah2004!@212.67.214.24/0090-scraping', pool_recycle=3600)
+        self.db_engine = create_engine('mysql+pymysql://gary:Sarah2004!@212.67.214.24/0090-scraping', max_overflow=10, pool_size=5, pool_recycle=3600)
 
         # set vars 
         self.allExtLinks = Queue()
-        self.maxThreads = 5
+        self.maxThreads = 1
         self.workers = []
         self.running  = True
         self.horizon = []
@@ -80,14 +80,12 @@ class spider():
         #the sql worker
         self.pending  = Queue()
 
-        self.written = 0
-
         #while we are running
         while self.running :
 
             #show the the loop is running
             print(' ')
-            print(' -------- Horizon ' + str(self.allExtLinks.qsize()) + ', Threads: ' + str(threading.activeCount()) + ', saved: ' + str(self.written) +' ----------'  )
+            print(' -------- Horizon ' + str(self.allExtLinks.qsize()) + ', Threads: ' + str(threading.activeCount()) +' ----------'  )
             print(' ')
 
             #if thread count < max - start new thread
