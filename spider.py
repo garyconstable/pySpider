@@ -20,11 +20,12 @@ class spider():
     def __init__(self):
 
         #db connect
-        self.db_engine = create_engine('mysql+pymysql://gary:Sarah2004!@212.67.214.24/0090-scraping', max_overflow=10, pool_size=5, pool_recycle=3600)
+        #self.db_engine = create_engine('mysql+pymysql://gary:Sarah2004!@212.67.214.24/0090-scraping', max_overflow=10, pool_size=5, pool_recycle=3600)
+        self.db_engine = create_engine('mysql+pymysql://gary:Sarah2004!@212.67.214.24/0090-scraping')
 
         # set vars 
         self.allExtLinks = Queue()
-        self.maxThreads = 1
+        self.maxThreads = 5
         self.workers = []
         self.running  = True
         self.horizon = []
@@ -106,7 +107,7 @@ class spider():
                     self.workers.remove(w)
 
             #sleep 1 second per loop
-            time.sleep(0.5)    
+            time.sleep(1)    
 
             #end the loop if no more
             if( self.allExtLinks.empty() == True ):

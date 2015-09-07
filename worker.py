@@ -9,8 +9,6 @@ from bs4 import BeautifulSoup
 import logging
 import re
 from queue import *
-#from conn import *
-#import pymysql.cursors
 import time
 import pymysql
 import sqlalchemy
@@ -80,7 +78,6 @@ class Worker(Thread):
         try:
             h = urlopen(uri)
             x =  h.info()
-            logging.info('[+] Opened: %s', uri)
             if x['Content-Type'] != None and 'text/html' in x['Content-Type'].lower():
                 return h.read()
             else:
@@ -150,17 +147,17 @@ class Worker(Thread):
         return internalLinks, externalLinks
 
 
-    def notInPending(self, url):
+    def inQueue(self, url):
         '''
         test to see if the url is part of the pending list
         '''
         #not in pending list
-        result = True   
+        result = False   
         connection = self.engine.connect()
         result = connection.execute( "select count(*) as total from pending where `url`=%s", (url) )
         for row in result:
             if( row['total']) > 0:
-                result = False
+                result = True
         connection.close()
         return result
 
@@ -173,11 +170,11 @@ class Worker(Thread):
         connection.execute( "insert into pending (url, dateCreated, dateUpdated) values ( %s, NOW(), NOW() )" , (url) )
         connection.close()
 
+
     def run(self):
         '''
         thread run, check url
         '''
-
         #get the item from the queue
         item = self.queue.get()
         
@@ -188,7 +185,6 @@ class Worker(Thread):
 
                 #the current url
                 url = item['url']
-                logging.info('[+] Thread: ' + self.threadNum + ' - New url: %s', url)
                 currentDomain = self.getCurrentDomain(url)
 
                 #fetch the html
@@ -198,7 +194,8 @@ class Worker(Thread):
                 if data != None:
 
                     #log the current url we are scraping
-                    logging.info('[+] Thread: ' + self.threadNum + ' - Success fetched: %s', url)
+                    #logging.info('[+] Thread: ' + self.threadNum + ' - Success fetched: %s', url)
+                    print('[+] Thread: ' + self.threadNum + ' - Success fetched: %s', url);
 
                     #create the beautifulSoup object
                     bsObj = BeautifulSoup(data, 'lxml')
@@ -208,19 +205,18 @@ class Worker(Thread):
                     
                     # only scrape pages that are relative to the start page
                     for i in internalLinks:
-                        if( self.notInPending(i) ):
-                            self.writeLinksToPending(i)
-                            self.queue.put({ 'url' : i })
+                        #if self.inQueue(i) == False:
+                        #self.writeLinksToPending(i)
+                        self.queue.put({ 'url' : i })
 
                     #add to the queue of external links
                     for i in externalLinks:
-                        if( self.notInPending(i) ):
-                            self.writeLinksToPending(i)
-                            self.queue.put({ 'url' : i })
+                        #if self.inQueue(i) == False:
+                        #self.writeLinksToPending(i)
+                        self.queue.put({ 'url' : i })
+                    
+                    time.sleep(1)
 
-                #let the other threads join in!
-                time.sleep(1)
-                 
                 #set the next item for the while loop
                 item = self.queue.get()                
 
