@@ -1,6 +1,6 @@
 # pySpider
 
-I am writing a python web crawler / spider, the app is given a seed url then scrapes links from all pages it finds.
+Python web crawler / spider - the app is given a seed url then scrapes links from all pages it finds.
 
 #### Current features
 + worker threads all creawling at the same time
