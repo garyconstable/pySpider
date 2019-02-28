@@ -45,8 +45,8 @@ CREATE TABLE `urls` (
 import pymysql.cursors
 conn = pymysql.connect(host='', unix_socket='/tmp/mysql.sock', user='', passwd='', db='')
 ```
-  
-##### With all dependencies installed run:
+
+##### With all dependencies installed run spider.py:
 
 ```
 python3 spider.py
