@@ -1,2 +1,6 @@
 __Pycache__/*
 conn.py
+pages/*
+pending/*
+processed/*
+.idea/*
