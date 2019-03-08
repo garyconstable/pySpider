@@ -24,14 +24,14 @@ class SavePage:
         """
         cursor = self.db_engine.cursor(MySQLdb.cursors.DictCursor)
         cursor2 = self.db_engine.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute('select url, id from pending order by id asc limit ' + str(per_batch))
+        cursor.execute('select url, id from queue order by id asc limit ' + str(per_batch))
         rows = cursor.fetchall()
         pending = []
         for row in rows:
             pending.append({
                 'url': row['url']
             })
-            cursor2.execute('DELETE FROM pending where id = "'+str(row['id'])+'" ')
+            cursor2.execute('DELETE FROM queue where id = "'+str(row['id'])+'" ')
             self.db_engine.commit()
         return pending
 
@@ -82,7 +82,7 @@ class SavePage:
         Get the Queue Length
         """
         cursor = self.db_engine.cursor(MySQLdb.cursors.DictCursor)
-        cursor.execute('select count(*) as count from pending')
+        cursor.execute('select count(*) as count from queue')
         rows = cursor.fetchall()
         for row in rows:
             return row['count']
