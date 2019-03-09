@@ -43,7 +43,7 @@ class Worker:
                         contents = f.read()
 
                     pages.append(contents)
-                    filename = "processed/" + file + ext
+                    filename = "/Volumes/segate/spider/processed/" + file + ext
                     file = open(filename, 'wb')
                     file.write(contents)
                     file.close()
