@@ -31,6 +31,12 @@ def get_domains():
     rows = cursor.fetchall()
 
     for row in rows:
+        sql = "insert into pending (url) values ('" + row['url'] + "')"
+        cursor2 = db.cursor(MySQLdb.cursors.DictCursor)
+        cursor2.execute(sql)
+        db.commit()
+        cursor2.close()
+
         save_domain(db, extract_from_string(row['url']))
 
     print()

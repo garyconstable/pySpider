@@ -72,7 +72,7 @@ class SavePage:
             print("[+] Batch: " + str(attempt) + ", Page " + str(index) + ", Url: " + str(item['url']))
             index = index + 1
             if page is not None:
-                filename = "pending/" + current_milli_time() + ".txt"
+                filename = "/Volumes/segate/spider/pending/" + current_milli_time() + ".txt"
                 file = open(filename, 'wb')
                 file.write(page)
                 file.close()
